@@ -1,20 +1,20 @@
-// controllers/ussdController.js - FIXED VERSION
+// controllers/ussdController.js - PRODUCTION VERSION
 console.log('✅ USSD Controller loaded successfully!');
 
-// Simple session storage (for testing)
+// Simple session storage (for production)
 const sessions = {};
 
 class USSDController {
     
-    // IMPORTANT: Use arrow function to bind 'this' correctly
     handleUSSD = async (req, res) => {
-        console.log('\n=== 📞 NEW USSD REQUEST ===');
+        console.log('\n=== 📞 USSD REQUEST ===');
         
+        // Africa's Talking sends data as form-encoded
         const { phoneNumber, sessionId, text } = req.body;
         
-        console.log('Phone:', phoneNumber);
-        console.log('Session:', sessionId);
-        console.log('Text:', text);
+        console.log('📱 Phone:', phoneNumber);
+        console.log('🆔 Session:', sessionId);
+        console.log('📝 Text:', text);
 
         try {
             let response = '';
@@ -23,82 +23,68 @@ class USSDController {
             if (!sessions[sessionId]) {
                 sessions[sessionId] = {
                     currentMenu: 'main',
-                    userData: {}
+                    userData: {},
+                    phoneNumber: phoneNumber
                 };
-                console.log('🆕 New session created');
+                console.log('🆕 New session created for:', phoneNumber);
             }
 
             const session = sessions[sessionId];
             const userInput = text ? text.split('*') : [];
             const currentInput = userInput[userInput.length - 1] || '';
 
-            console.log('Current menu:', session.currentMenu);
-            console.log('Current input:', currentInput);
+            console.log('📍 Current menu:', session.currentMenu);
+            console.log('🎯 Current input:', currentInput);
 
             // Process based on current menu
             if (session.currentMenu === 'main') {
-                console.log('📍 Processing MAIN menu');
                 response = this.handleMainMenu(session, currentInput);
             } else if (session.currentMenu === 'weather') {
-                console.log('📍 Processing WEATHER menu');
                 response = this.handleWeatherMenu(session, currentInput);
             } else if (session.currentMenu === 'pests') {
-                console.log('📍 Processing PESTS menu');
                 response = this.handlePestsMenu(session, currentInput);
             } else if (session.currentMenu === 'prices') {
-                console.log('📍 Processing PRICES menu');
                 response = this.handlePricesMenu(session, currentInput);
-            } else {
-                console.log('📍 Unknown menu, defaulting to MAIN');
-                response = this.handleMainMenu(session, currentInput);
             }
 
-            console.log('✅ Sending response:', response.substring(0, 50) + '...');
+            console.log('✅ Response ready');
             
+            // Africa's Talking expects text/plain response
             res.set('Content-Type', 'text/plain');
             res.send(response);
 
         } catch (error) {
             console.error('❌ USSD Error:', error);
-            console.error('Error stack:', error.stack);
+            // Always respond with proper USSD format, even on error
             res.set('Content-Type', 'text/plain');
-            res.send('END Sorry, an error occurred. Please try again.');
+            res.send('END Sorry, service temporarily unavailable. Please try again.');
         }
     }
 
     handleMainMenu(session, input) {
-        console.log('🔄 handleMainMenu called with input:', input);
-        
         if (input === '') {
-            // First time - show main menu
-            return `CON Welcome to Mlimi Advisor 🌱\nChoose service:\n1. Weather Forecast\n2. Pest & Disease Help\n3. Market Prices\n0. Exit`;
+            return `CON Welcome to Mlimi Advisor\nGet farming information:\n1. Weather Forecast\n2. Pest & Disease Help\n3. Market Prices\n0. Exit`;
         }
 
         switch (input) {
             case '1':
                 session.currentMenu = 'weather';
-                return this.showWeatherMenu();
+                return `CON Select your district:\n1. Kasungu\n2. Lilongwe\n3. Mzuzu\n4. Blantyre\n5. Zomba\n0. Back`;
             case '2':
                 session.currentMenu = 'pests';
-                return this.showPestsMenu();
+                return `CON Select your crop:\n1. Maize\n2. Cassava\n3. Groundnuts\n4. Beans\n0. Back`;
             case '3':
                 session.currentMenu = 'prices';
-                return this.showPricesMenu();
+                return `CON Select crop for prices:\n1. Maize\n2. Cassava\n3. Groundnuts\n4. Beans\n0. Back`;
             case '0':
                 delete sessions[session.sessionId];
                 return 'END Thank you for using Mlimi Advisor!';
             default:
-                return 'CON Invalid choice. Please try again:\n1. Weather\n2. Pest Help\n3. Market Prices\n0. Exit';
+                return 'CON Invalid choice. Try again:\n1. Weather\n2. Pest Help\n3. Market Prices\n0. Exit';
         }
     }
 
     handleWeatherMenu(session, input) {
-        console.log('🔄 handleWeatherMenu called with input:', input);
-        
-        if (input === '') {
-            return `CON Select your district:\n1. Kasungu\n2. Lilongwe\n3. Mzuzu\n4. Blantyre\n5. Zomba\n0. Back`;
-        }
-
         if (input === '0') {
             session.currentMenu = 'main';
             return this.handleMainMenu(session, '');
@@ -111,22 +97,15 @@ class USSDController {
 
         const district = districts[input];
         if (district) {
-            // Get weather and end session
             const forecast = this.getWeatherForecast(district);
             delete sessions[session.sessionId];
-            return `END 🌤️ Weather for ${district}:\n${forecast}`;
+            return `END Weather for ${district}:\n${forecast}`;
         } else {
-            return 'CON Invalid district. Choose:\n1. Kasungu\n2. Lilongwe\n3. Mzuzu\n4. Blantyre\n5. Zomba\n0. Back';
+            return 'CON Invalid district:\n1. Kasungu\n2. Lilongwe\n3. Mzuzu\n4. Blantyre\n5. Zomba\n0. Back';
         }
     }
 
     handlePestsMenu(session, input) {
-        console.log('🔄 handlePestsMenu called with input:', input);
-        
-        if (input === '') {
-            return `CON Select your crop:\n1. Maize\n2. Cassava\n3. Groundnuts\n4. Beans\n0. Back`;
-        }
-
         if (input === '0') {
             session.currentMenu = 'main';
             return this.handleMainMenu(session, '');
@@ -140,19 +119,13 @@ class USSDController {
         if (crop) {
             const advice = this.getPestAdvice(crop);
             delete sessions[session.sessionId];
-            return `END 🐛 Pest advice for ${crop}:\n${advice}`;
+            return `END Pest advice for ${crop}:\n${advice}`;
         } else {
-            return 'CON Invalid crop. Choose:\n1. Maize\n2. Cassava\n3. Groundnuts\n4. Beans\n0. Back';
+            return 'CON Invalid crop:\n1. Maize\n2. Cassava\n3. Groundnuts\n4. Beans\n0. Back';
         }
     }
 
     handlePricesMenu(session, input) {
-        console.log('🔄 handlePricesMenu called with input:', input);
-        
-        if (input === '') {
-            return `CON Select crop for prices:\n1. Maize\n2. Cassava\n3. Groundnuts\n4. Beans\n0. Back`;
-        }
-
         if (input === '0') {
             session.currentMenu = 'main';
             return this.handleMainMenu(session, '');
@@ -166,56 +139,42 @@ class USSDController {
         if (crop) {
             const prices = this.getMarketPrices(crop);
             delete sessions[session.sessionId];
-            return `END 💰 Prices for ${crop}:\n${prices}`;
+            return `END Prices for ${crop}:\n${prices}`;
         } else {
-            return 'CON Invalid crop. Choose:\n1. Maize\n2. Cassava\n3. Groundnuts\n4. Beans\n0. Back';
+            return 'CON Invalid crop:\n1. Maize\n2. Cassava\n3. Groundnuts\n4. Beans\n0. Back';
         }
-    }
-
-    showWeatherMenu() {
-        return `CON Select your district:\n1. Kasungu\n2. Lilongwe\n3. Mzuzu\n4. Blantyre\n5. Zomba\n0. Back`;
-    }
-
-    showPestsMenu() {
-        return `CON Select your crop:\n1. Maize\n2. Cassava\n3. Groundnuts\n4. Beans\n0. Back`;
-    }
-
-    showPricesMenu() {
-        return `CON Select crop for prices:\n1. Maize\n2. Cassava\n3. Groundnuts\n4. Beans\n0. Back`;
     }
 
     getWeatherForecast(district) {
         const forecasts = {
-            'Kasungu': 'Today: Sunny 28°C\nTomorrow: Sunny 29°C\nDay 3: Partly cloudy 27°C',
-            'Lilongwe': 'Today: Partly cloudy 26°C\nTomorrow: Rain 24°C\nDay 3: Cloudy 25°C',
-            'Mzuzu': 'Today: Cloudy 23°C\nTomorrow: Rain 22°C\nDay 3: Rain 21°C',
-            'Blantyre': 'Today: Sunny 30°C\nTomorrow: Sunny 31°C\nDay 3: Partly cloudy 29°C',
-            'Zomba': 'Today: Partly cloudy 25°C\nTomorrow: Rain 23°C\nDay 3: Cloudy 24°C'
+            'Kasungu': 'Today: Sunny 28C\nTomorrow: Sunny 29C\nDay3: Cloudy 27C',
+            'Lilongwe': 'Today: Cloudy 26C\nTomorrow: Rain 24C\nDay3: Cloudy 25C',
+            'Mzuzu': 'Today: Cloudy 23C\nTomorrow: Rain 22C\nDay3: Rain 21C',
+            'Blantyre': 'Today: Sunny 30C\nTomorrow: Sunny 31C\nDay3: Cloudy 29C',
+            'Zomba': 'Today: Cloudy 25C\nTomorrow: Rain 23C\nDay3: Cloudy 24C'
         };
-        return forecasts[district] || 'Weather data not available';
+        return forecasts[district] || 'Data not available';
     }
 
     getPestAdvice(crop) {
         const advice = {
-            'Maize': 'Common: Armyworm, Stalk borer\nTreatment: Use neem extract\nPrevention: Early planting',
-            'Cassava': 'Common: Mosaic virus\nTreatment: Remove infected plants\nPrevention: Use clean cuttings',
-            'Groundnuts': 'Common: Leaf spots\nTreatment: Fungicide spray\nPrevention: Crop rotation',
-            'Beans': 'Common: Aphids\nTreatment: Insecticide soap\nPrevention: Companion planting'
+            'Maize': 'Armyworm: Use pesticides\nStalk borer: Remove affected plants',
+            'Cassava': 'Mosaic virus: Use clean cuttings\nBrown streak: Plant resistant varieties',
+            'Groundnuts': 'Leaf spots: Use fungicide\nRosette: Control aphids',
+            'Beans': 'Aphids: Use insecticide\nBean fly: Early planting'
         };
-        return advice[crop] || 'Consult local extension officer';
+        return advice[crop] || 'Consult extension officer';
     }
 
     getMarketPrices(crop) {
         const prices = {
-            'Maize': 'Kasungu: MWK 250/kg\nLilongwe: MWK 270/kg\nMzuzu: MWK 260/kg',
-            'Cassava': 'Kasungu: MWK 150/kg\nLilongwe: MWK 160/kg\nBlantyre: MWK 170/kg',
-            'Groundnuts': 'Lilongwe: MWK 800/kg\nMzuzu: MWK 750/kg\nZomba: MWK 780/kg',
-            'Beans': 'Kasungu: MWK 600/kg\nLilongwe: MWK 620/kg\nBlantyre: MWK 610/kg'
+            'Maize': 'Kasungu: MWK250/kg\nLilongwe: MWK270/kg\nMzuzu: MWK260/kg',
+            'Cassava': 'Kasungu: MWK150/kg\nLilongwe: MWK160/kg\nBlantyre: MWK170/kg',
+            'Groundnuts': 'Lilongwe: MWK800/kg\nMzuzu: MWK750/kg\nZomba: MWK780/kg',
+            'Beans': 'Kasungu: MWK600/kg\nLilongwe: MWK620/kg\nBlantyre: MWK610/kg'
         };
         return prices[crop] || 'Price data not available';
     }
 }
 
-// Create instance and export
-const ussdController = new USSDController();
-module.exports = ussdController;
+module.exports = new USSDController();
