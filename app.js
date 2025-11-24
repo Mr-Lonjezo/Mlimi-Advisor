@@ -1,34 +1,49 @@
-// Import required modules
+// app.js - PRODUCTION VERSION
+require('dotenv').config();
 const express = require('express');
 const bodyParser = require('body-parser');
 const ussdRoutes = require('./routes/ussd');
 
-// Create Express application
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// Middleware to parse incoming requests
+// Middleware - IMPORTANT: Africa's Talking sends form data
 app.use(bodyParser.json());
-app.use(bodyParser.urlencoded({ extended: false }));
+app.use(bodyParser.urlencoded({ extended: true })); // Changed to true for Africa's Talking
 
-// USSD routes
+// Routes
 app.use('/ussd', ussdRoutes);
 
-// Health check endpoint
+// Health check
 app.get('/', (req, res) => {
     res.json({ 
         status: 'OK', 
         message: 'Mlimi Advisor API is running!',
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
+        environment: process.env.NODE_ENV || 'development'
+    });
+});
+
+// Test USSD endpoint with GET (for debugging)
+app.get('/ussd', (req, res) => {
+    res.json({ 
+        message: 'USSD endpoint is active. Use POST method for USSD requests.',
+        example: 'Send POST request with {phoneNumber, sessionId, text}'
+    });
+});
+
+// Error handling
+app.use('*', (req, res) => {
+    res.status(404).json({ 
+        error: 'Endpoint not found',
+        availableEndpoints: ['GET /', 'POST /ussd']
     });
 });
 
 // Start server
-app.listen(PORT, () => {
-    console.log(`🌱 Mlimi Advisor Server started!`);
-    console.log(`📍 Server running on port ${PORT}`);
-    console.log(`🔍 Health check: http://localhost:${PORT}`);
-    console.log(`📞 USSD endpoint: http://localhost:${PORT}/ussd`);
+app.listen(PORT, '0.0.0.0', () => {
+    console.log(`🌱 Mlimi Advisor Server started on port ${PORT}!`);
+    console.log(`📍 Environment: ${process.env.NODE_ENV || 'development'}`);
 });
 
 module.exports = app;
