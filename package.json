@@ -1,7 +1,7 @@
 {
   "name": "mlimi-advisor",
-  "version": "1.0.0", 
-  "description": "USSD agricultural advisory system for Malawi",
+  "version": "1.0.0",
+  "description": "USSD agricultural advisory system for Malawi with all 28 districts",
   "main": "app.js",
   "scripts": {
     "start": "node app.js",
@@ -20,7 +20,14 @@
   "engines": {
     "node": ">=18.0.0"
   },
-  "keywords": ["ussd", "agriculture", "malawi", "farmers"],
+  "keywords": [
+    "ussd",
+    "agriculture",
+    "malawi",
+    "farmers",
+    "weather",
+    "farming"
+  ],
   "author": "Consider Lonjezo",
   "license": "MIT"
 }

@@ -20,7 +20,9 @@ app.get('/', (req, res) => {
         status: 'OK', 
         message: 'Mlimi Advisor API is running!',
         timestamp: new Date().toISOString(),
-        environment: process.env.NODE_ENV || 'development'
+        environment: process.env.NODE_ENV || 'development',
+        features: 'Weather, Pest Advice, Market Prices',
+        districts: 'All 28 Malawi districts supported'
     });
 });
 
@@ -28,12 +30,13 @@ app.get('/', (req, res) => {
 app.get('/ussd', (req, res) => {
     res.json({ 
         message: 'USSD endpoint is active. Use POST method for USSD requests.',
-        example: 'Send POST request with {phoneNumber, sessionId, text}'
+        example: 'Send POST request with {phoneNumber, sessionId, text}',
+        supported_menus: ['Weather', 'Pest Help', 'Market Prices']
     });
 });
 
 // Error handling
-app.use('*', (req, res) => {
+app.use( (req, res) => {
     res.status(404).json({ 
         error: 'Endpoint not found',
         availableEndpoints: ['GET /', 'POST /ussd']
@@ -44,6 +47,8 @@ app.use('*', (req, res) => {
 app.listen(PORT, '0.0.0.0', () => {
     console.log(`🌱 Mlimi Advisor Server started on port ${PORT}!`);
     console.log(`📍 Environment: ${process.env.NODE_ENV || 'development'}`);
+    console.log(`🌍 Supporting all 28 Malawi districts`);
+    console.log(`✅ Weather service: ${process.env.OPENWEATHER_API_KEY ? 'Active' : 'Mock data'}`);
 });
 
 module.exports = app;

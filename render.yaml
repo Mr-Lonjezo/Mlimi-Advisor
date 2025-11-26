@@ -10,3 +10,5 @@ services:
         value: production
       - key: PORT
         value: 3000
+      - key: OPENWEATHER_API_KEY
+        value: 59d3e2176ecca94c8d0c53c9382770cc
