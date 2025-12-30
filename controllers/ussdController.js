@@ -1,3 +1,4 @@
+const databaseService = require('../services/databaseService');
 // controllers/ussdController.js - WITH ALL DISTRICTS AND REGIONAL MENUS
 console.log('✅ USSD Controller loaded successfully!');
 
@@ -95,10 +96,10 @@ class USSDController {
                 return `CON Select your region:\n1. Northern Region\n2. Central Region\n3. Southern Region\n0. Back`;
             case '2':
                 session.currentMenu = 'pests';
-                return `CON Select your crop:\n1. Maize\n2. Cassava\n3. Groundnuts\n4. Beans\n0. Back`;
+                return `CON Select your crop:\n1. Maize\n2. Cassava\n3. Groundnuts\n4. Beans\n5. Rice\n6. Sweet Potatoes\n0. Back`;
             case '3':
                 session.currentMenu = 'prices';
-                return `CON Select crop for prices:\n1. Maize\n2. Cassava\n3. Groundnuts\n4. Beans\n0. Back`;
+                return `CON Select crop for prices:\n1. Maize\n2. Cassava\n3. Groundnuts\n4. Beans\n5. Rice\n6. Sweet Potatoes\n0. Back`;
             case '0':
                 delete sessions[session.sessionId];
                 return 'END Thank you for using Mlimi Advisor!';
@@ -186,50 +187,54 @@ class USSDController {
         }
     }
 
-    handlePestsMenu(session, input) {
-        session.lastActivity = new Date();
+    async handlePestsMenu(session, input) {
+    session.lastActivity = new Date();
 
-        if (input === '0') {
-            session.currentMenu = 'main';
-            return this.handleMainMenu(session, '');
-        }
-
-        const crops = {
-            '1': 'Maize', '2': 'Cassava', '3': 'Groundnuts', '4': 'Beans'
-        };
-
-        const crop = crops[input];
-        if (crop) {
-            const advice = this.getPestAdvice(crop);
-            delete sessions[session.sessionId];
-            return `END Pest advice for ${crop}:\n${advice}`;
-        } else {
-            return 'CON Invalid crop. Select:\n1. Maize\n2. Cassava\n3. Groundnuts\n4. Beans\n0. Back';
-        }
+    if (input === '0') {
+        session.currentMenu = 'main';
+        return this.handleMainMenu(session, '');
     }
 
-    handlePricesMenu(session, input) {
-        session.lastActivity = new Date();
+    const crops = {
+        '1': 'Maize', '2': 'Cassava', '3': 'Groundnuts', '4': 'Beans',
+        '5': 'Rice', '6': 'Sweet Potatoes'
+    };
 
-        if (input === '0') {
-            session.currentMenu = 'main';
-            return this.handleMainMenu(session, '');
-        }
+    const crop = crops[input];
+    if (crop) {
+        // Use database service
+        const advice = await databaseService.getPestAdvice(crop);
+        delete sessions[session.sessionId];
+        return `END ${advice}`;
+    } else {
+        return 'CON Invalid crop. Select:\n1. Maize\n2. Cassava\n3. Groundnuts\n4. Beans\n5. Rice\n6. Sweet Potatoes\n0. Back';
+    }
+  }
 
-        const crops = {
-            '1': 'Maize', '2': 'Cassava', '3': 'Groundnuts', '4': 'Beans'
-        };
 
-        const crop = crops[input];
-        if (crop) {
-            const prices = this.getMarketPrices(crop);
-            delete sessions[session.sessionId];
-            return `END Market prices for ${crop}:\n${prices}`;
-        } else {
-            return 'CON Invalid crop. Select:\n1. Maize\n2. Cassava\n3. Groundnuts\n4. Beans\n0. Back';
-        }
+   async handlePricesMenu(session, input) {
+    session.lastActivity = new Date();
+
+    if (input === '0') {
+        session.currentMenu = 'main';
+        return this.handleMainMenu(session, '');
     }
 
+    const crops = {
+        '1': 'Maize', '2': 'Cassava', '3': 'Groundnuts', '4': 'Beans',
+        '5': 'Rice', '6': 'Sweet Potatoes'
+    };
+
+    const crop = crops[input];
+    if (crop) {
+        // Use database service
+        const prices = await databaseService.getMarketPrices(crop);
+        delete sessions[session.sessionId];
+        return `END ${prices}`;
+    } else {
+        return 'CON Invalid crop. Select:\n1. Maize\n2. Cassava\n3. Groundnuts\n4. Beans\n5. Rice\n6. Sweet Potatoes\n0. Back';
+    }
+ }
     getPestAdvice(crop) {
         const advice = {
             'Maize': 'Common: Armyworm, Stalk borer\nUse neem extract or pesticides\nRemove affected plants',
