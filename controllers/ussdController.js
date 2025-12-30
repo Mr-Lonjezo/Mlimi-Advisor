@@ -1,5 +1,5 @@
+const paginationService = require('../services/paginationService');
 const databaseService = require('../services/databaseService');
-// controllers/ussdController.js - WITH ALL DISTRICTS AND REGIONAL MENUS
 console.log('✅ USSD Controller loaded successfully!');
 
 // Import the new weather service
@@ -145,75 +145,174 @@ class USSDController {
     }
 
     async handleDistrictSelection(session, input) {
-        session.lastActivity = new Date();
-
-        if (input === '0') {
-            session.currentMenu = 'weather_region';
-            return this.handleWeatherRegionMenu(session, '');
-        }
-
-        // District mapping by region
-        const regionDistricts = {
-            northern: {
-                '1': 'Chitipa', '2': 'Karonga', '3': 'Likoma',
-                '4': 'Mzimba', '5': 'Nkhata Bay', '6': 'Rumphi'
-            },
-            central: {
-                '1': 'Dedza', '2': 'Dowa', '3': 'Kasungu',
-                '4': 'Lilongwe', '5': 'Mchinji', '6': 'Nkhotakota',
-                '7': 'Ntcheu', '8': 'Ntchisi', '9': 'Salima'
-            },
-            southern: {
-                '1': 'Balaka', '2': 'Blantyre', '3': 'Chikwawa',
-                '4': 'Chiradzulu', '5': 'Machinga', '6': 'Mangochi',
-                '7': 'Mulanje', '8': 'Mwanza', '9': 'Nsanje',
-                '10': 'Thyolo', '11': 'Phalombe', '12': 'Zomba',
-                '13': 'Neno'
-            }
-        };
-
-        const region = session.userData.region;
-        const districts = regionDistricts[region];
-        const district = districts[input];
-
-        if (district) {
-            console.log(`📍 User selected district: ${district} in ${region} region`);
+      session.lastActivity = new Date();
+      session.lastInput = input; // Store for pagination
+  
+      // Handle pagination navigation
+      if (session.pagination && session.pagination.weather) {
+        if (['99', '98', '0'].includes(input)) {
+            const paginated = paginationService.paginateWeatherData(
+                session.weatherData,
+                session.userData.district,
+                session
+            );
             
-            const forecast = await weatherService.getForecastByDistrict(district);
+            if (paginated === null) {
+                // User chose '0' to exit pagination
+                delete session.pagination;
+                delete session.weatherData;
+                session.currentMenu = 'weather_' + session.userData.region;
+                return this.showDistrictsByRegion(session.userData.region);
+            }
+            
             delete sessions[session.sessionId];
-            return `END ${forecast}`;
-        } else {
-            return `CON Invalid district in ${region} region.\n${this.showDistrictsByRegion(region).replace('CON ', '')}`;
+            return paginated.content;
         }
-    }
+      }
+  
+      if (input === '0') {
+          session.currentMenu = 'weather_region';
+          return this.handleWeatherRegionMenu(session, '');
+      }
+  
+      const regionDistricts = {
+          northern: {
+              '1': 'Chitipa', '2': 'Karonga', '3': 'Likoma',
+              '4': 'Mzimba', '5': 'Nkhata Bay', '6': 'Rumphi'
+          },
+          central: {
+              '1': 'Dedza', '2': 'Dowa', '3': 'Kasungu',
+              '4': 'Lilongwe', '5': 'Mchinji', '6': 'Nkhotakota',
+              '7': 'Ntcheu', '8': 'Ntchisi', '9': 'Salima'
+          },
+          southern: {
+              '1': 'Balaka', '2': 'Blantyre', '3': 'Chikwawa',
+              '4': 'Chiradzulu', '5': 'Machinga', '6': 'Mangochi',
+              '7': 'Mulanje', '8': 'Mwanza', '9': 'Nsanje',
+              '10': 'Thyolo', '11': 'Phalombe', '12': 'Zomba',
+              '13': 'Neno'
+          }
+      };
+  
+      const region = session.userData.region;
+      const districts = regionDistricts[region];
+      const district = districts[input];
+  
+      if (district) {
+          console.log(`📍 User selected district: ${district} in ${region} region`);
+          
+          const rawForecast = await weatherService.getForecastByDistrict(district);
+          session.weatherData = rawForecast; // Store for pagination
+          
+          // Paginate the weather data
+          const paginated = paginationService.paginateWeatherData(
+              rawForecast,
+              district,
+              session
+          );
+          
+          if (paginated.isPaginated) {
+              // Multi-page response
+              return paginated.content;
+          } else {
+              // Single page response
+              delete sessions[session.sessionId];
+              return `END ${paginated.content}`;
+          }
+      } else {
+          return `CON Invalid district in ${region} region.\n${this.showDistrictsByRegion(region).replace('CON ', '')}`;
+      }
+ }  
 
     async handlePestsMenu(session, input) {
-    session.lastActivity = new Date();
-
-    if (input === '0') {
-        session.currentMenu = 'main';
-        return this.handleMainMenu(session, '');
-    }
-
-    const crops = {
-        '1': 'Maize', '2': 'Cassava', '3': 'Groundnuts', '4': 'Beans',
-        '5': 'Rice', '6': 'Sweet Potatoes'
-    };
-
-    const crop = crops[input];
-    if (crop) {
-        // Use database service
-        const advice = await databaseService.getPestAdvice(crop);
-        delete sessions[session.sessionId];
-        return `END ${advice}`;
-    } else {
-        return 'CON Invalid crop. Select:\n1. Maize\n2. Cassava\n3. Groundnuts\n4. Beans\n5. Rice\n6. Sweet Potatoes\n0. Back';
-    }
+      session.lastActivity = new Date();
+      session.lastInput = input;
+  
+      // Handle pagination navigation
+      if (session.pagination && session.pagination.pests) {
+          if (['99', '98', '0'].includes(input)) {
+              const paginated = paginationService.paginatePestAdvice(
+                  session.pestData,
+                  session.userData.crop,
+                  session
+              );
+              
+              if (paginated === null) {
+                  // User chose '0' to exit pagination
+                  delete session.pagination;
+                  delete session.pestData;
+                  session.currentMenu = 'pests';
+                  return `CON Select your crop:\n1. Maize\n2. Cassava\n3. Groundnuts\n4. Beans\n5. Rice\n6. Sweet Potatoes\n0. Back`;
+              }
+              
+              delete sessions[session.sessionId];
+              return paginated.content;
+          }
+      }
+  
+      if (input === '0') {
+          session.currentMenu = 'main';
+          return this.handleMainMenu(session, '');
+      }
+  
+      const crops = {
+          '1': 'Maize', '2': 'Cassava', '3': 'Groundnuts', '4': 'Beans',
+          '5': 'Rice', '6': 'Sweet Potatoes'
+      };
+  
+      const crop = crops[input];
+      if (crop) {
+          // Use database service
+          const rawAdvice = await databaseService.getPestAdvice(crop);
+          session.pestData = rawAdvice; // Store for pagination
+          session.userData.crop = crop;
+          
+          // Paginate the pest advice
+          const paginated = paginationService.paginatePestAdvice(
+              rawAdvice,
+              crop,
+              session
+          );
+          
+          if (paginated.isPaginated) {
+              // Multi-page response
+              return paginated.content;
+          } else {
+              // Single page response
+              delete sessions[session.sessionId];
+              return `END ${paginated.content}`;
+          }
+      } else {
+          return 'CON Invalid crop. Select:\n1. Maize\n2. Cassava\n3. Groundnuts\n4. Beans\n5. Rice\n6. Sweet Potatoes\n0. Back';
+      }
   }
 
 
    async handlePricesMenu(session, input) {
     session.lastActivity = new Date();
+    session.lastInput = input;
+
+    // Handle pagination navigation
+    if (session.pagination && session.pagination.prices) {
+        if (['99', '98', '0'].includes(input)) {
+            const paginated = paginationService.paginateMarketPrices(
+                session.priceData,
+                session.userData.crop,
+                session
+            );
+            
+            if (paginated === null) {
+                // User chose '0' to exit pagination
+                delete session.pagination;
+                delete session.priceData;
+                session.currentMenu = 'prices';
+                return `CON Select crop for prices:\n1. Maize\n2. Cassava\n3. Groundnuts\n4. Beans\n5. Rice\n6. Sweet Potatoes\n0. Back`;
+            }
+            
+            delete sessions[session.sessionId];
+            return paginated.content;
+        }
+    }
 
     if (input === '0') {
         session.currentMenu = 'main';
@@ -228,13 +327,30 @@ class USSDController {
     const crop = crops[input];
     if (crop) {
         // Use database service
-        const prices = await databaseService.getMarketPrices(crop);
-        delete sessions[session.sessionId];
-        return `END ${prices}`;
+        const rawPrices = await databaseService.getMarketPrices(crop);
+        session.priceData = rawPrices; // Store for pagination
+        session.userData.crop = crop;
+        
+        // Paginate the market prices
+        const paginated = paginationService.paginateMarketPrices(
+            rawPrices,
+            crop,
+            session
+        );
+        
+        if (paginated.isPaginated) {
+            // Multi-page response
+            return paginated.content;
+        } else {
+            // Single page response
+            delete sessions[session.sessionId];
+            return `END ${paginated.content}`;
+        }
     } else {
         return 'CON Invalid crop. Select:\n1. Maize\n2. Cassava\n3. Groundnuts\n4. Beans\n5. Rice\n6. Sweet Potatoes\n0. Back';
     }
- }
+  }
+
     getPestAdvice(crop) {
         const advice = {
             'Maize': 'Common: Armyworm, Stalk borer\nUse neem extract or pesticides\nRemove affected plants',

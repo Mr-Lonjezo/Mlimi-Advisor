@@ -84,16 +84,16 @@ class WeatherService {
     }
 
     formatForecastForUSSD(weatherData, districtName) {
-        console.log('📊 Formatting weather data for USSD...');
+        console.log('📊 Formatting weather data...');
         
-        let ussdResponse = `🌤️ ${districtName} Weather:\n\n`;
+        let forecast = `🌤️ ${districtName} Weather\n\n`;
         
         // Get current weather
         const current = weatherData.current;
         if (current) {
-            ussdResponse += `Now: ${this.getWeatherDescription(current.weather_code)}\n`;
-            ussdResponse += `Temp: ${Math.round(current.temperature_2m)}°C\n`;
-            ussdResponse += `Humidity: ${current.relative_humidity_2m}%\n\n`;
+            forecast += `Now: ${this.getWeatherDescription(current.weather_code)}\n`;
+            forecast += `Temp: ${Math.round(current.temperature_2m)}°C\n`;
+            forecast += `Humidity: ${current.relative_humidity_2m}%\n\n`;
         }
         
         // Get daily forecast for next 3 days
@@ -106,20 +106,20 @@ class WeatherService {
                     const date = new Date(daily.time[i]);
                     const dayName = i === 0 ? 'Today' : i === 1 ? 'Tomorrow' : this.getDayName(date);
                     
-                    ussdResponse += `${dayName}:\n`;
+                    forecast += `${dayName}:\n`;
                     
                     if (daily.weather_code && daily.weather_code[i] !== undefined) {
-                        ussdResponse += `${this.getWeatherDescription(daily.weather_code[i])}\n`;
+                        forecast += `${this.getWeatherDescription(daily.weather_code[i])}\n`;
                     }
                     
                     if (daily.temperature_2m_max && daily.temperature_2m_min) {
                         const maxTemp = Math.round(daily.temperature_2m_max[i]);
                         const minTemp = Math.round(daily.temperature_2m_min[i]);
-                        ussdResponse += `High: ${maxTemp}°C, Low: ${minTemp}°C\n`;
+                        forecast += `High: ${maxTemp}°C, Low: ${minTemp}°C\n`;
                     }
                     
                     if (daily.precipitation_sum && daily.precipitation_sum[i] > 0) {
-                        ussdResponse += `Rain: ${daily.precipitation_sum[i].toFixed(1)}mm\n`;
+                        forecast += `Rain: ${daily.precipitation_sum[i].toFixed(1)}mm\n`;
                     }
                     
                     // Add farming advice based on weather
@@ -127,21 +127,20 @@ class WeatherService {
                     const maxTemp = daily.temperature_2m_max ? daily.temperature_2m_max[i] : 25;
                     const advice = this.getFarmingAdviceFromCode(weatherCode, maxTemp);
                     if (advice) {
-                        ussdResponse += `💡 ${advice}\n`;
+                        forecast += `💡 ${advice}\n`;
                     }
                     
-                    ussdResponse += '\n';
+                    forecast += '\n';
                 }
             }
         }
         
         // Add seasonal farming tips for Malawi
-        ussdResponse += this.getSeasonalFarmingTips(districtName);
+        forecast += this.getSeasonalFarmingTips(districtName);
         
-        console.log('✅ Weather formatted for USSD');
-        return ussdResponse.trim();
+        console.log(`✅ Weather data ready (${forecast.length} chars)`);
+        return forecast; // Return raw data, let pagination service handle it
     }
-
     getWeatherDescription(weatherCode) {
         // WMO Weather interpretation codes
         const weatherCodes = {
