@@ -1,3 +1,4 @@
+const plantingCalendarService = require('../services/plantingCalendarService');
 const paginationService = require('../services/paginationService');
 const databaseService = require('../services/databaseService');
 console.log('✅ USSD Controller loaded successfully!');
@@ -65,21 +66,27 @@ class USSDController {
     async processMenu(session, currentInput, userInput) {
         this.cleanupSessions();
 
-        switch (session.currentMenu) {
-            case 'main':
-                return this.handleMainMenu(session, currentInput);
-            case 'weather_region':
-                return this.handleWeatherRegionMenu(session, currentInput);
-            case 'weather_northern':
-            case 'weather_central':
-            case 'weather_southern':
-                return await this.handleDistrictSelection(session, currentInput);
-            case 'pests':
-                return this.handlePestsMenu(session, currentInput);
-            case 'prices':
-                return this.handlePricesMenu(session, currentInput);
-            default:
-                return this.handleMainMenu(session, currentInput);
+            switch (session.currentMenu) {
+                case 'main':
+                    return this.handleMainMenu(session, currentInput);
+                case 'weather_region':
+                    return this.handleWeatherRegionMenu(session, currentInput);
+                case 'weather_northern':
+                case 'weather_central':
+                case 'weather_southern':
+                    return await this.handleDistrictSelection(session, currentInput);
+                case 'pests':
+                    return await this.handlePestsMenu(session, currentInput);
+                case 'prices':
+                    return await this.handlePricesMenu(session, currentInput);
+                case 'planting_menu':
+                    return await this.handlePlantingMenu(session, currentInput);
+                case 'planting_crop_select':
+                    return await this.handlePlantingCropSelect(session, currentInput);
+                case 'planting_month_select':
+                    return await this.handlePlantingMonthSelect(session, currentInput);
+                default:
+                    return this.handleMainMenu(session, currentInput);
         }
     }
 
@@ -87,7 +94,7 @@ class USSDController {
         session.lastActivity = new Date();
 
         if (input === '') {
-            return `CON Welcome to Mlimi Advisor\nGet farming information:\n1. Weather Forecast\n2. Pest & Disease Help\n3. Market Prices\n0. Exit`;
+            return `CON Welcome to Mlimi Advisor\nGet farming information:\n1. Weather Forecast\n2. Pest & Disease Help\n3. Market Prices\n4. Planting Calendar\n0. Exit`;
         }
 
         switch (input) {
@@ -100,6 +107,9 @@ class USSDController {
             case '3':
                 session.currentMenu = 'prices';
                 return `CON Select crop for prices:\n1. Maize\n2. Cassava\n3. Groundnuts\n4. Beans\n5. Rice\n6. Sweet Potatoes\n0. Back`;
+            case '4':
+                session.currentMenu = 'planting_menu';
+                return `CON Planting Calendar:\n1. What to plant now\n2. Crop planting guide\n3. Monthly planting\n0. Back`;
             case '0':
                 delete sessions[session.sessionId];
                 return 'END Thank you for using Mlimi Advisor!';
@@ -350,6 +360,32 @@ class USSDController {
         return 'CON Invalid crop. Select:\n1. Maize\n2. Cassava\n3. Groundnuts\n4. Beans\n5. Rice\n6. Sweet Potatoes\n0. Back';
     }
   }
+  async handleQuickDescription(session, input) {
+    session.lastActivity = new Date();
+    session.lastInput = input;
+
+    if (input === '0') {
+        session.currentMenu = 'symptoms_menu';
+        return this.handleSymptomsMenu(session, '');
+    }
+
+    const crop = session.userData.quickCrop;
+    if (!crop) {
+        return 'CON Session expired.\n0. Back';
+    }
+
+    console.log(`🤖 AI diagnosis for ${crop}: ${input}`);
+    
+    // Show processing message
+    const processingMsg = `CON ⏳ Analyzing symptoms...\n\nPlease wait a moment while our AI analyzes "${input.substring(0, 30)}..."`;
+    
+    // In real USSD, we'd need to handle async differently
+    // For now, we'll do immediate response
+    const diagnosis = await aiSymptomsService.diagnoseWithAI(crop, input, 'Malawi');
+    
+    delete sessions[session.sessionId];
+    return `END 🔍 AI Diagnosis for ${crop}:\n\n${diagnosis}`;
+}
 
     getPestAdvice(crop) {
         const advice = {
