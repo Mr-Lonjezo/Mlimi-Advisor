@@ -85,6 +85,16 @@ class USSDController {
                     return await this.handlePlantingCropSelect(session, currentInput);
                 case 'planting_month_select':
                     return await this.handlePlantingMonthSelect(session, currentInput);
+                case 'symptoms_menu':
+                    return await this.handleSymptomsMenu(session, currentInput);
+                case 'symptoms_ai_quick':
+                    return await this.handleSymptomsAIQuick(session, currentInput);
+                case 'symptoms_ai_crop':
+                    return await this.handleSymptomsAICrop(session, currentInput);
+                case 'symptoms_interactive_crop':
+                    return await this.handleSymptomsInteractiveCrop(session, currentInput);
+                case 'symptoms_interactive_q1':
+                    return await this.handleSymptomsInteractiveQ1(session, currentInput);
                 default:
                     return this.handleMainMenu(session, currentInput);
         }
@@ -110,6 +120,9 @@ class USSDController {
             case '4':
                 session.currentMenu = 'planting_menu';
                 return `CON Planting Calendar:\n1. What to plant now\n2. Crop planting guide\n3. Monthly planting\n0. Back`;
+            case '5':
+                session.currentMenu = 'symptoms_menu';
+                return `CON AI Symptoms Checker:\n1. Quick AI Diagnosis\n2. Interactive Wizard\n3. Manual Guide\n0. Back`;
             case '0':
                 delete sessions[session.sessionId];
                 return 'END Thank you for using Mlimi Advisor!';
@@ -360,7 +373,31 @@ class USSDController {
         return 'CON Invalid crop. Select:\n1. Maize\n2. Cassava\n3. Groundnuts\n4. Beans\n5. Rice\n6. Sweet Potatoes\n0. Back';
     }
   }
-  async handleQuickDescription(session, input) {
+  async handleSymptomsMenu(session, input) {
+    session.lastActivity = new Date();
+    session.lastInput = input;
+
+    if (input === '0') {
+        session.currentMenu = 'main';
+        return this.handleMainMenu(session, '');
+    }
+
+    switch (input) {
+        case '1':
+            session.currentMenu = 'symptoms_ai_quick';
+            return `CON Enter symptoms briefly:\n(e.g., "yellow leaves with spots")`;
+        case '2':
+            session.currentMenu = 'symptoms_interactive_crop';
+            return `CON Interactive Diagnosis\nSelect your crop:\n1. Maize\n2. Cassava\n3. Groundnuts\n4. Beans\n0. Back`;
+        case '3':
+            session.currentMenu = 'symptoms_manual_crop';
+            return `CON Manual Diagnosis\nSelect crop:\n1. Maize\n2. Cassava\n3. Groundnuts\n4. Beans\n0. Back`;
+        default:
+            return 'CON Invalid choice:\n1. Quick AI Diagnosis\n2. Interactive Wizard\n3. Manual Guide\n0. Back';
+    }
+}
+
+async handleSymptomsAIQuick(session, input) {
     session.lastActivity = new Date();
     session.lastInput = input;
 
@@ -369,23 +406,172 @@ class USSDController {
         return this.handleSymptomsMenu(session, '');
     }
 
-    const crop = session.userData.quickCrop;
-    if (!crop) {
+    if (!session.userData.aiCrop) {
+        // First, get the crop
+        session.currentMenu = 'symptoms_ai_crop';
+        session.userData.symptomsText = input;
+        return `CON Select crop for diagnosis:\n1. Maize\n2. Cassava\n3. Groundnuts\n4. Beans\n5. Rice\n6. Sweet Potatoes\n0. Back`;
+    }
+
+    // We have both crop and symptoms
+    const crop = session.userData.aiCrop;
+    const symptoms = session.userData.symptomsText || input;
+    
+    console.log(`🤖 AI Diagnosis requested for ${crop}: ${symptoms}`);
+    
+    try {
+        const diagnosis = await symptomsWizardService.quickDiagnosis(crop, symptoms);
+        
+        // Check if we need pagination
+        if (diagnosis.length > 400) {
+            session.diagnosisData = diagnosis;
+            
+            const paginated = paginationService.paginateForUSSD(
+                diagnosis,
+                session,
+                'ai_diagnosis'
+            );
+            
+            if (paginated && paginated.isPaginated) {
+                return paginated.content;
+            }
+        }
+        
+        delete sessions[session.sessionId];
+        return `END ${diagnosis}`;
+        
+    } catch (error) {
+        console.error('Diagnosis error:', error);
+        delete sessions[session.sessionId];
+        return 'END Sorry, diagnosis service\nis currently unavailable.\nPlease try again later\nor contact your local\nagriculture office.';
+    }
+}
+
+async handleSymptomsAICrop(session, input) {
+    session.lastActivity = new Date();
+    session.lastInput = input;
+
+    if (input === '0') {
+        session.currentMenu = 'symptoms_menu';
+        return this.handleSymptomsMenu(session, '');
+    }
+
+    const crops = {
+        '1': 'Maize', '2': 'Cassava', '3': 'Groundnuts', '4': 'Beans',
+        '5': 'Rice', '6': 'Sweet Potatoes'
+    };
+
+    const crop = crops[input];
+    if (crop) {
+        session.userData.aiCrop = crop;
+        
+        // If we already have symptoms, proceed to diagnosis
+        if (session.userData.symptomsText) {
+            return await this.handleSymptomsAIQuick(session, '');
+        }
+        
+        // Otherwise ask for symptoms
+        session.currentMenu = 'symptoms_ai_quick';
+        return `CON Describe symptoms for ${crop}:\n(e.g., "yellow leaves")\n`;
+    } else {
+        return 'CON Invalid crop:\n1. Maize\n2. Cassava\n3. Groundnuts\n4. Beans\n5. Rice\n6. Sweet Potatoes\n0. Back';
+    }
+}
+
+async handleSymptomsInteractiveCrop(session, input) {
+    session.lastActivity = new Date();
+    session.lastInput = input;
+
+    if (input === '0') {
+        session.currentMenu = 'symptoms_menu';
+        return this.handleSymptomsMenu(session, '');
+    }
+
+    const crops = {
+        '1': 'Maize', '2': 'Cassava', '3': 'Groundnuts', '4': 'Beans'
+    };
+
+    const crop = crops[input];
+    if (crop) {
+        // Start interactive diagnosis
+        const diagnosisSession = await symptomsWizardService.startInteractiveDiagnosis(
+            crop,
+            session.phoneNumber,
+            session.sessionId
+        );
+        
+        session.interactiveDiagnosis = diagnosisSession;
+        session.currentMenu = 'symptoms_interactive_q1';
+        
+        return `CON ${diagnosisSession.question}\n\n${diagnosisSession.options.join('\n')}`;
+    } else {
+        return 'CON Invalid crop:\n1. Maize\n2. Cassava\n3. Groundnuts\n4. Beans\n0. Back';
+    }
+}
+
+async handleSymptomsInteractiveQ1(session, input) {
+    session.lastActivity = new Date();
+    session.lastInput = input;
+
+    if (input === '0') {
+        // Cancel interactive diagnosis
+        delete session.interactiveDiagnosis;
+        session.currentMenu = 'symptoms_menu';
+        return this.handleSymptomsMenu(session, '');
+    }
+
+    if (!session.interactiveDiagnosis) {
         return 'CON Session expired.\n0. Back';
     }
 
-    console.log(`🤖 AI diagnosis for ${crop}: ${input}`);
+    const result = await symptomsWizardService.processInteractiveStep(
+        session.sessionId,
+        parseInt(input)
+    );
     
-    // Show processing message
-    const processingMsg = `CON ⏳ Analyzing symptoms...\n\nPlease wait a moment while our AI analyzes "${input.substring(0, 30)}..."`;
+    if (result.expired) {
+        delete session.interactiveDiagnosis;
+        return `CON ${result.error}\n0. Back`;
+    }
     
-    // In real USSD, we'd need to handle async differently
-    // For now, we'll do immediate response
-    const diagnosis = await aiSymptomsService.diagnoseWithAI(crop, input, 'Malawi');
+    if (result.canceled) {
+        delete session.interactiveDiagnosis;
+        delete sessions[session.sessionId];
+        return `END ${result.message}`;
+    }
     
-    delete sessions[session.sessionId];
-    return `END 🔍 AI Diagnosis for ${crop}:\n\n${diagnosis}`;
+    if (result.complete) {
+        delete session.interactiveDiagnosis;
+        
+        // Check if we need pagination
+        if (result.diagnosis.length > 400) {
+            session.diagnosisData = result.diagnosis;
+            
+            const paginated = paginationService.paginateForUSSD(
+                result.diagnosis,
+                session,
+                'interactive_diagnosis'
+            );
+            
+            if (paginated && paginated.isPaginated) {
+                return paginated.content;
+            }
+        }
+        
+        delete sessions[session.sessionId];
+        return `END ${result.diagnosis}`;
+    }
+    
+    if (result.continue) {
+        session.interactiveDiagnosis = result;
+        session.currentMenu = 'symptoms_interactive_q1'; // Same handler for next question
+        
+        return `CON ${result.question}\n\n${result.options.join('\n')}`;
+    }
+    
+    return 'CON Error processing answer.\n0. Back';
 }
+
 
     getPestAdvice(crop) {
         const advice = {

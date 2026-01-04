@@ -1,150 +1,157 @@
-// services/symptomsWizardService.js - Updated with AI
+// services/symptomsWizardService.js - Updated with AI Integration
 const aiSymptomsService = require('./aiSymptomsService');
 
 class SymptomsWizardService {
     constructor() {
-        this.symptomTrees = {
-            'Maize': {
-                questions: [
-                    {
-                        id: 1,
-                        question: 'What do you see on the leaves?',
-                        options: [
-                            { id: 'A', text: 'Holes or ragged edges', next: 2 },
-                            { id: 'B', text: 'Yellow streaks or stripes', next: 3 },
-                            { id: 'C', text: 'Gray or brown spots', next: 4 }
-                        ]
-                    },
-                    {
-                        id: 2,
-                        question: 'Is there sawdust-like material?',
-                        options: [
-                            { id: 'A', text: 'Yes, near the whorl', result: 'Fall Armyworm' },
-                            { id: 'B', text: 'No, just holes', result: 'Cutworms' }
-                        ]
-                    },
-                    {
-                        id: 3,
-                        question: 'Are streaks parallel to veins?',
-                        options: [
-                            { id: 'A', text: 'Yes, parallel', result: 'Maize Streak Virus' },
-                            { id: 'B', text: 'No, random', result: 'Nutrient Deficiency' }
-                        ]
-                    }
-                ],
-                diagnoses: {
-                    'Fall Armyworm': {
-                        severity: 'High',
-                        symptoms: 'Holes in leaves, sawdust-like frass',
-                        treatment: {
-                            organic: 'Apply neem extract. Hand-pick larvae.',
-                            chemical: 'Use Emamectin benzoate.'
-                        },
-                        prevention: 'Early planting, crop rotation.'
-                    },
-                    'Maize Streak Virus': {
-                        severity: 'Medium',
-                        symptoms: 'Yellow streaks parallel to veins',
-                        treatment: {
-                            organic: 'Remove infected plants.',
-                            chemical: 'Control leafhoppers.'
-                        },
-                        prevention: 'Plant resistant varieties.'
-                    }
-                }
-            },
-            'Cassava': {
-                questions: [
-                    {
-                        id: 1,
-                        question: 'What do you see on leaves?',
-                        options: [
-                            { id: 'A', text: 'Yellow mosaic patterns', result: 'Cassava Mosaic' },
-                            { id: 'B', text: 'Brown streaks on stems', result: 'Brown Streak' }
-                        ]
-                    }
-                ],
-                diagnoses: {
-                    'Cassava Mosaic': {
-                        severity: 'High',
-                        symptoms: 'Yellow mosaic patterns, distorted leaves',
-                        treatment: {
-                            organic: 'Use disease-free cuttings.'
-                        },
-                        prevention: 'Plant resistant varieties.'
-                    }
-                }
-            }
+        this.aiService = aiSymptomsService;
+        console.log('✅ Symptoms Wizard Service initialized with AI integration');
+        
+        // Interactive sessions storage
+        this.interactiveSessions = new Map();
+        
+        // Clean up old sessions every hour
+        setInterval(() => this.cleanupSessions(), 3600000);
+    }
+
+    async quickDiagnosis(cropName, symptoms) {
+        console.log(`🔍 Quick diagnosis for ${cropName}: "${symptoms}"`);
+        
+        // Use AI service for diagnosis
+        return await this.aiService.diagnoseWithAI(cropName, symptoms, 'Malawi');
+    }
+
+    async startInteractiveDiagnosis(cropName, phoneNumber, sessionId) {
+        console.log(`🎯 Starting interactive diagnosis for ${cropName}, phone: ${phoneNumber}`);
+        
+        const session = {
+            crop: cropName,
+            phoneNumber: phoneNumber,
+            sessionId: sessionId,
+            step: 1,
+            symptoms: [],
+            createdAt: Date.now(),
+            history: []
         };
         
-        console.log('✅ Symptoms Wizard Service initialized');
+        this.interactiveSessions.set(sessionId, session);
+        
+        const firstQuestion = await this.aiService.startInteractiveDiagnosis(cropName, phoneNumber);
+        firstQuestion.sessionId = sessionId; // Ensure session ID matches
+        
+        return firstQuestion;
     }
 
-    startDiagnosis(cropName) {
-        const cropTree = this.symptomTrees[cropName];
-        if (!cropTree) {
+    async processInteractiveStep(sessionId, answer) {
+        const session = this.interactiveSessions.get(sessionId);
+        
+        if (!session) {
             return {
-                error: `No wizard for ${cropName}. Try maize or cassava.`
+                error: 'Session expired or not found. Please start over.',
+                expired: true
             };
         }
-
-        const firstQuestion = cropTree.questions.find(q => q.id === 1);
-        if (!firstQuestion) {
-            return { error: 'Wizard not configured.' };
+        
+        // Update session timestamp
+        session.lastActivity = Date.now();
+        
+        // Process the answer
+        const result = await this.aiService.processInteractiveAnswer(session, answer);
+        
+        if (result.canceled) {
+            this.interactiveSessions.delete(sessionId);
+            return result;
         }
-
-        return {
-            crop: cropName,
-            currentQuestion: firstQuestion,
-            sessionId: Date.now().toString(),
-            progress: '1/' + cropTree.questions.length
-        };
-    }
-
-    processAnswer(session, answerId) {
-        const cropTree = this.symptomTrees[session.crop];
-        if (!cropTree) return { error: 'Invalid session.' };
-
-        const currentQuestion = cropTree.questions.find(q => q.id === session.currentQuestion.id);
-        if (!currentQuestion) return { error: 'Question not found.' };
-
-        const selectedOption = currentQuestion.options.find(opt => opt.id === answerId);
-        if (!selectedOption) return { error: 'Invalid answer.' };
-
-        if (selectedOption.result) {
-            const diagnosis = cropTree.diagnoses[selectedOption.result];
+        
+        if (result.complete) {
+            // Diagnosis complete
+            this.interactiveSessions.delete(sessionId);
             return {
                 complete: true,
-                diagnosis: selectedOption.result,
-                details: diagnosis,
-                recommendation: this.formatRecommendation(diagnosis, selectedOption.result)
-            };
-        } else if (selectedOption.next) {
-            const nextQuestion = cropTree.questions.find(q => q.id === selectedOption.next);
-            if (!nextQuestion) return { error: 'Next question not found.' };
-
-            const totalQuestions = cropTree.questions.length;
-            const currentIndex = cropTree.questions.findIndex(q => q.id === nextQuestion.id);
-            const progress = `${currentIndex + 1}/${totalQuestions}`;
-
-            return {
-                complete: false,
-                nextQuestion: nextQuestion,
-                progress: progress
+                diagnosis: result.diagnosis,
+                sessionId: sessionId
             };
         }
-
-        return { error: 'Configuration error.' };
+        
+        if (result.continue) {
+            // Update session and continue
+            session.step = result.step;
+            session.history.push({
+                step: session.step,
+                question: result.question,
+                answer: answer
+            });
+            
+            this.interactiveSessions.set(sessionId, session);
+            
+            return {
+                continue: true,
+                question: result.question,
+                options: result.options,
+                step: result.step,
+                sessionId: sessionId
+            };
+        }
+        
+        return result;
     }
 
-    formatRecommendation(diagnosis, diseaseName) {
-        return `Diagnosis: ${diseaseName}\nSeverity: ${diagnosis.severity}\n\n💊 Treatment:\n${diagnosis.treatment.organic || ''}\n${diagnosis.treatment.chemical || ''}\n\n🛡️ Prevention:\n${diagnosis.prevention}\n\n⚠️ Consult officer if unsure.`;
+    getSession(sessionId) {
+        return this.interactiveSessions.get(sessionId);
     }
 
-    // AI-Powered quick diagnosis
-    quickDiagnosis(cropName, symptoms) {
-        console.log(`🔍 Quick diagnosis for ${cropName}`);
-        return aiSymptomsService.diagnoseWithAI(cropName, symptoms, 'Malawi');
+    cleanupSessions() {
+        const now = Date.now();
+        const maxAge = 30 * 60 * 1000; // 30 minutes
+        
+        let cleaned = 0;
+        
+        for (const [sessionId, session] of this.interactiveSessions.entries()) {
+            if (now - session.createdAt > maxAge) {
+                this.interactiveSessions.delete(sessionId);
+                cleaned++;
+            }
+        }
+        
+        if (cleaned > 0) {
+            console.log(`🧹 Cleaned up ${cleaned} expired diagnosis sessions`);
+        }
+    }
+
+    formatForUSSD(content) {
+        // Ensure content is USSD-friendly
+        let formatted = content
+            .replace(/\. /g, '.\n')
+            .replace(/\n\s*\n/g, '\n')
+            .trim();
+        
+        // Limit line length
+        const lines = formatted.split('\n');
+        const processedLines = lines.map(line => {
+            if (line.length > 40) {
+                // Break long lines
+                const words = line.split(' ');
+                let currentLine = '';
+                let result = [];
+                
+                for (const word of words) {
+                    if ((currentLine + ' ' + word).length > 40) {
+                        result.push(currentLine);
+                        currentLine = word;
+                    } else {
+                        currentLine = currentLine ? currentLine + ' ' + word : word;
+                    }
+                }
+                
+                if (currentLine) {
+                    result.push(currentLine);
+                }
+                
+                return result.join('\n');
+            }
+            return line;
+        });
+        
+        return processedLines.join('\n');
     }
 }
 
