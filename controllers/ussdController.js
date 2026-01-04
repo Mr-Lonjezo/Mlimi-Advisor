@@ -104,7 +104,7 @@ class USSDController {
         session.lastActivity = new Date();
 
         if (input === '') {
-            return `CON Welcome to Mlimi Advisor\nGet farming information:\n1. Weather Forecast\n2. Pest & Disease Help\n3. Market Prices\n4. Planting Calendar\n0. Exit`;
+             return `CON Welcome to Mlimi Advisor\nGet farming information:\n1. Weather Forecast\n2. Pest & Disease Help\n3. Market Prices\n4. Planting Calendar\n5. AI Symptoms Checker\n0. Exit`;
         }
 
         switch (input) {
